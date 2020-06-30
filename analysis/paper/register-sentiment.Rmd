@@ -1,0 +1,189 @@
+---
+title: "noaa-sentiments"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lubridate)
+library(sentimentr)
+library(jsonlite)
+```
+## Look at sentiment of NOAA rulese since 1994.
+Goal is to see if 2020 rules post-COVID are more positive than pre-COVID.
+
+## Get data from the federal register
+Pull from the federal register
+
+e.g. search for 50 600
+https://www.federalregister.gov/documents/search?conditions%5Bcfr%5D%5Bpart%5D=600&conditions%5Bcfr%5D%5Btitle%5D=50#
+
+```{r pulldata}
+part <- c(600, 622, 635, 648, 660, 665, 679, 680, 697)
+
+get_npages <- function(x) {
+page <- paste0("https://www.federalregister.gov/api/v1/documents?conditions%5Bcfr%5D%5Bpart%5D=",x,"&conditions%5Bcfr%5D%5Btitle%5D=50&publication_date%5D%5Blte%5D=05%2F28%2F2020&format=json&page=0&per_page=1000")
+fpage <- fromJSON(page, flatten = TRUE)
+npages <- fpage$total_pages
+return(npages)
+}
+
+pull_regs <- function(part, page) {
+page <- paste0("https://www.federalregister.gov/api/v1/documents?conditions%5Bcfr%5D%5Bpart%5D=",part,"&conditions%5Bcfr%5D%5Btitle%5D=50&publication_date%5D%5Blte%5D=05%2F28%2F2020&format=json&page=",page,"&per_page=1000")
+xx <- fromJSON(page, flatten = TRUE)$results
+return(xx)
+}
+
+# get number of pages for each part
+register <- tibble(part = part) %>% 
+  mutate(npages = map_int(part, get_npages)) %>% 
+  I()
+register
+# pull the data
+regs <- register %>% 
+  mutate(regs = map2(part, npages, ~map(1:.y, .f = pull_regs, part = .x))) %>% 
+  mutate(data = map(regs, ~do.call(rbind, .x))) %>% 
+  select(part, data) %>% 
+  unnest(cols = c(data)) %>% 
+  I()
+regs
+```
+
+
+
+<!-- ## Look at the sentiment of the abstracts of these rules -->
+
+<!-- Using `sentimentr` package. to find average sentiment of sentences in the abstracts.     -->
+
+<!-- ```{r sentiment} -->
+<!-- # rules by NOAA -->
+<!-- regs_part <- regs %>% -->
+<!--    unnest(cols = "agencies") %>%  -->
+<!--    filter(name == "National Oceanic and Atmospheric Administration", -->
+<!--           type == "Rule") %>% -->
+<!--   I() -->
+<!-- regs_part -->
+
+<!-- # sentiments of sentences of the abstract and then average over abstracts -->
+<!-- regs_sentiment <- regs_part %>%  -->
+<!--   select(publication_date, title, type, abstract, document_number) %>%  -->
+<!--   rowid_to_column() %>%  -->
+<!--   mutate(sentences = map(abstract,get_sentences), -->
+<!--          sentiment = map(sentences,sentiment_by)) %>%  -->
+<!--   unnest(cols = sentiment) %>%  -->
+<!--   I() -->
+
+
+<!-- # make publication date more easy to work with -->
+<!-- regs_summary <- regs_sentiment %>%  -->
+<!--   select(publication_date, ave_sentiment) %>%  -->
+<!--   mutate(date = lubridate::date(publication_date), -->
+<!--          year = lubridate::year(publication_date)) %>%  -->
+<!--   I() -->
+
+<!-- ``` -->
+
+<!-- ## viz -->
+
+<!-- summarize by year -->
+
+<!-- ```{r plot-sentiment} -->
+
+
+<!-- regs_summary %>% -->
+<!--   ggplot() + -->
+<!--   #aes(y = ave_sentiment, x = factor(year)) + -->
+<!--   aes(y = ave_sentiment, x = date) + -->
+<!--   #geom_boxplot() + -->
+<!--   geom_jitter(alpha = 0.5) + -->
+<!--   geom_smooth() + -->
+<!--   NULL -->
+
+<!-- regs_summary %>% -->
+<!--   ggplot() + -->
+<!--   aes(y = ave_sentiment, x = factor(year)) + -->
+<!--   geom_boxplot() + -->
+<!--   theme_minimal() + -->
+<!--   labs(x = "year", -->
+<!--        y = "average sentiment", -->
+<!--        title = "NOAA rules in federal register more positive in 2020", -->
+<!--        subtitle = "average sentiment of abstracts of NOAA Rules", -->
+<!--        caption = "\n@gavin_fay\ndata from https://federalregister.gov") + -->
+<!--   #geom_jitter(alpha = 0.5) + -->
+<!--   #geom_smooth() + -->
+<!--   NULL -->
+
+<!-- ggsave("noaa-sentiment-yr.png",width = 8, height = 4.5) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- regs_summary %>% -->
+<!--   mutate(month = lubridate::month(date)) %>%  -->
+<!--   filter(month <= 5) %>%  -->
+<!--   ggplot() + -->
+<!--   aes(y = ave_sentiment, x = factor(year)) + -->
+<!--   geom_boxplot() + -->
+<!--   theme_minimal() + -->
+<!--   labs(x = "year", -->
+<!--        y = "average sentiment", -->
+<!--        title = "NOAA rules in federal register more positive in 2020", -->
+<!--        subtitle = "average sentiment of abstracts of NOAA Rules", -->
+<!--        caption = "\n@gavin_fay\ndata from https://federalregister.gov") + -->
+<!--   #geom_jitter(alpha = 0.5) + -->
+<!--   #geom_smooth() + -->
+<!--   NULL -->
+
+<!-- ``` -->
+
+<!-- A qnd linear model suggests positive effect of 2020 is statistically clear. -->
+
+<!-- ```{r} -->
+<!-- regs_lm <- regs_summary %>%    -->
+<!--   mutate(month = lubridate::month(date)) %>%  -->
+<!--   filter(month <= 5) %>%  -->
+<!--   mutate(twenty = ifelse(year==2020, 1, 0)) %>%  -->
+<!--   #lm(ave_sentiment~twenty,data=.) %>%  -->
+<!--   lm(ave_sentiment~factor(year)-1,data=.) %>%    -->
+<!--   tidy(conf.int = TRUE) %>% #augment() -->
+<!--   I() -->
+<!-- regs_lm -->
+<!-- regs_lm %>%  -->
+<!--   mutate(year = 2001:2020) %>%  -->
+<!--   ggplot() + -->
+<!--   aes(x=year, y = estimate) + -->
+<!--   #geom_jitter(data = regs_summary, aes(x=year, y=ave_sentiment), alpha = 0.2) + -->
+<!--   geom_point() + -->
+<!--   geom_errorbar(aes(ymin=conf.low, ymax = conf.high)) + -->
+<!--   geom_smooth(data = regs_summary, mapping = aes(x=year, y = ave_sentiment), method = "lm") + -->
+<!--   geom_smooth(data = regs_summary, mapping = aes(x=year, y = ave_sentiment), method = "gam", col = "orange") + -->
+<!--   #ylim(-0.1,0.4) + -->
+<!--   labs(x = "year", -->
+<!--        y = "average sentiment", -->
+<!--        title = "NOAA rules in federal register more positive in 2020", -->
+<!--        subtitle = "average sentiment of abstracts of NOAA Rules during Jan-May", -->
+<!--        caption = "\n@gavin_fay\ndata from https://federalregister.gov") + -->
+<!--   NULL -->
+<!-- ``` -->
+
+<!-- ```{r} -->
+<!-- tt <- " NMFS approves and -->
+<!-- implements the New England Fishery -->
+<!-- Management Council’s Habitat Clam -->
+<!-- Dredge Exemption Framework -->
+<!-- Adjustment to its Fishery Management -->
+<!-- Plans. This action establishes three -->
+<!-- areas within the Great South Channel -->
+<!-- Habitat Management Area where vessels -->
+<!-- may not fish for Atlantic surfclams or blue -->
+<!-- mussels with dredge gear. This action is -->
+<!-- intended to restrict the fishing industry -->
+<!-- access to part of the surfclam and blue -->
+<!-- mussel resource within the Habitat -->
+<!-- Management Area while balancing the -->
+<!-- Council’s habitat conservation -->
+<!-- objectives. " -->
+<!-- sentiment_by(tt) -->
+<!-- ``` -->
+
