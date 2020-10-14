@@ -12,12 +12,12 @@ fr_section_data <- data.frame(cfr_title_number = 1:50,
   filter(!grepl("\\[Reserved\\]", cfr_toc)) %>%
   mutate(cfr_section = stringr::str_match(cfr_toc, "([[:digit:]]{1,4}\\.[[:digit:]]{1,4})")[,2],
          cfr_part =  as.character(gsub("\\..*", "", cfr_section)),
-         fr_url = paste0("www.federalregister.gov/api/v1/documents.json?fields%5B%5D=action&fields%5B%5D=citation&fields%5B%5D=publication_date&fields%5B%5D=full_text_xml_url&fields%5B%5D=title&fields%5B%5D=type&per_page=2000&order=newest&conditions%5Bcfr%5D%5Btitle%5D=",
+         fr_url = paste0("www.federalregister.gov/api/v1/documents.json?fields%5B%5D=action&fields%5B%5D=citation&fields%5B%5D=publication_date&fields%5B%5D=full_text_xml_url&fields%5B%5D=title&fields%5B%5D=type&per_page=2000&order=oldest&conditions%5Btype%5D%5B%5D=RULE&conditions%5Bcfr%5D%5Btitle%5D=",
                          cfr_title_number,
                          "&conditions%5Bcfr%5D%5Bpart%5D=",
                          cfr_part))
 
-saveRDS(fr_section_data, "analysis/data/derived_data/FR_section_data.RDS")
+# saveRDS(fr_section_data, "analysis/data/derived_data/FR_section_data.RDS")
 
 ## Query the Federal Register for each unique CFR title and CFR part (e.g., Title 50 part 648)
 fr_section_output <- fr_section_data %>%
