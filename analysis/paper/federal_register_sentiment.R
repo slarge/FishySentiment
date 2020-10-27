@@ -60,6 +60,7 @@ nmfs_part <- as.character(c(600, 622, 635, 648, 660, 665, 679, 680, 697))
 fr_nmfs_summary <- output %>%
   filter(cfr_title_number == 50,
          cfr_part %in% nmfs_part) %>%
+  slice(1:100) %>%
   mutate(summary =  furrr::future_pmap(list(fr_full_text_xml_url,
                                             cfr_part), safe_summary)) %>%
   I()
