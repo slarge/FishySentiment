@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(sentimentr)
+source(here::here("R/utilities.R"))
+
 ```
 
 
@@ -45,6 +47,9 @@ fr_sentiment <- section_summary %>%
 ```
 
 
+```{r}
+safe_summary <- purrr::safely(get_fr_summary, NA_real_)
+```
 
 ## null distribution
 get parts for a random sample of all rules
@@ -57,14 +62,25 @@ build_null <- output %>%
   I()
 build_null
 
-#trial
-build_null <- tibble(cfr_title_number = 1,
-                     cfr_part = "10")
-
-null_fr_sentiment <- fr_sentiment %>% 
-  right_join(build_null) %>% 
+future::plan(future::multisession)
+system.time(null_summary <- output %>% 
+  filter(!is.na(fr_full_text_xml_url),
+         cfr_title_number %in% build_null$cfr_title_number,
+         cfr_part %in% build_null$cfr_part) %>%
+  slice(1:100) %>% 
+  mutate(summary =  furrr::future_pmap(list(fr_full_text_xml_url,
+                                            #cfr_part), get_fr_summary)) %>% 
+                                            cfr_part), safe_summary)) %>% 
   I()
-null_fr_sentiment
+)
+# #trial
+# build_null <- tibble(cfr_title_number = 1,
+#                      cfr_part = "10")
+# 
+# null_fr_sentiment <- fr_sentiment %>% 
+#   right_join(build_null) %>% 
+#   I()
+# null_fr_sentiment
 ```
 
 ## fisheries sentiment
@@ -74,10 +90,16 @@ get the sentiment for rules for NOAA Fisheries
 ```{r}
 nmfs_part <- as.character(c(600, 622, 635, 648, 660, 665, 679, 680, 697))
 
-nmfs_fr_sentiment <- fr_sentiment %>% 
+nmfs_fr_summary <- output %>% 
   filter(cfr_title_number == 50,
          cfr_part %in% nmfs_part) %>% 
+  mutate(summary =  furrr::future_pmap(list(fr_full_text_xml_url,
+                                            cfr_part), safe_summary)) %>%  
   I()
+# nmfs_fr_sentiment <- fr_sentiment %>% 
+#   filter(cfr_title_number == 50,
+#          cfr_part %in% nmfs_part) %>% 
+#  I()
 nmfs_fr_sentiment
 ```
 
