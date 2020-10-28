@@ -30,10 +30,17 @@ get_fr_summary <- function(fr_xml_url, cfr_part, return_summary_text = FALSE){
   ## Capture all referenced section numbers from the "List of Subjects" part of the XML
   if(length(xml2::xml_find_all(res, ".//SECTNO")) > 0) {
     sectno <- res %>%
-      xml2::xml_find_all(".//SECTNO") %>%
+      xml2::xml_find_all(".//SUBJECT[not(contains(., 'Reserved'))]/preceding-sibling::*[1][name()='SECTNO']") %>%
       xml2::xml_text() %>%
-      gsub("\u00A7|\u2009|\\s|and", "", .) %>%
-      strsplit(., split = ",") %>% unlist()
+      unlist() %>%
+      data.frame("col" = .) %>%
+      mutate(col = gsub(",\\sand|\\sand\\s", ",", col),
+             col = gsub("\u00A7|\u2009|\\s", "", col),
+             col = strsplit(col, split = ",")) %>%
+      tidyr::unnest(c(col)) %>%
+      filter(!grepl("^appendix.*", tolower(col))) %>%
+      distinct() %>%
+      unlist()
 
     if(length(sectno) == 0){
       sectno <- NA
